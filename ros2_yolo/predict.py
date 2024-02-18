@@ -17,7 +17,7 @@ class YOLOPredictor(Node):
             '/color/image_raw',
             self.image_callback,
             10)
-        self.box_publisher = self.create_publisher(Float32MultiArray, '/ros2_yolo/boxes', 10)
+        self.box_publisher = self.create_publisher(Float32MultiArray, '/ros2_yolo/box', 10)
         self.img_publisher = self.create_publisher(Image, '/ros2_yolo/pred', 10)
         self.bridge = CvBridge()
         self.yolo_model = YOLO('yolov8n.pt')
