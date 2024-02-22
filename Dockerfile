@@ -21,6 +21,9 @@ RUN python3 -m pip install --upgrade pip wheel
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install ultralytics
 
+# for urg_node2 (hokuyo lidar)
+RUN git clone --recursive https://github.com/Hokuyo-aut/urg_node2.git /home/user/ws/src/urg_node2
+
 USER $USERNAME
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source /home/user/ws/install/local_setup.bash" >> ~/.bashrc
