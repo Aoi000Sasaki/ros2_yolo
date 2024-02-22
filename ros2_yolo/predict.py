@@ -12,6 +12,7 @@ import torch
 class YOLOPredictor(Node):
     def __init__(self):
         super().__init__('predictor')
+        self.ws_path = '/home/user/ws/src'
         self.subscription = self.create_subscription(
             Image,
             '/color/image_raw',
@@ -20,7 +21,7 @@ class YOLOPredictor(Node):
         self.box_publisher = self.create_publisher(Float32MultiArray, '/ros2_yolo/box', 10)
         self.img_publisher = self.create_publisher(Image, '/ros2_yolo/pred', 10)
         self.bridge = CvBridge()
-        self.yolo_model = YOLO('yolov8n.pt')
+        self.yolo_model = YOLO(self.ws_path + '/ros2_yolo/weights/yolov8n.pt')
 
     def image_callback(self, msg):
         timestamp = msg.header.stamp
@@ -30,8 +31,8 @@ class YOLOPredictor(Node):
         results = self.yolo_model(cv_image)
 
         pred_image = results[0].plot()
-        cv2.imwrite('/home/user/ws/src/image.jpg', cv_image)
-        cv2.imwrite('/home/user/ws/src/pred.jpg', pred_image)
+        cv2.imwrite('/ros2_yolo/image/image.jpg', cv_image)
+        cv2.imwrite('/ros2_yolo/image/pred.jpg', pred_image)
 
         reliable_box_array = self.filter_prediction(results)
         # Float32MultiArrayはheaderを持たないため，リストの先頭にタイムスタンプを追加
