@@ -31,8 +31,8 @@ class YOLOPredictor(Node):
         results = self.yolo_model(cv_image)
 
         pred_image = results[0].plot()
-        cv2.imwrite('/ros2_yolo/image/image.jpg', cv_image)
-        cv2.imwrite('/ros2_yolo/image/pred.jpg', pred_image)
+        cv2.imwrite(self.ws_path + '/ros2_yolo/image/image.jpg', cv_image)
+        cv2.imwrite(self.ws_path + '/ros2_yolo/image/pred.jpg', pred_image)
 
         reliable_box_array = self.filter_prediction(results)
         # Float32MultiArrayはheaderを持たないため，リストの先頭にタイムスタンプを追加
