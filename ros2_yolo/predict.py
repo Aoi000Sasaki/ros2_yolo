@@ -3,6 +3,7 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
+from vison_msgs.msg import Detection2DArray
 from cv_bridge import CvBridge
 import cv2
 
@@ -13,64 +14,48 @@ class YOLOPredictor(Node):
     def __init__(self):
         super().__init__('predictor')
         self.ws_path = '/home/user/ws/src'
-        self.subscription = self.create_subscription(
-            Image,
-            '/color/image_raw',
-            self.image_callback,
-            10)
-        self.box_publisher = self.create_publisher(Float32MultiArray, '/ros2_yolo/box', 10)
+        self.subscription = self.create_subscription(Image, '/color/image_raw', self.image_callback, 1)
+        self.vmsg_publisher = self.create_publisher(Detection2DArray, '/ros2_yolo/detection', 10)
         self.img_publisher = self.create_publisher(Image, '/ros2_yolo/pred', 10)
         self.bridge = CvBridge()
         self.yolo_model = YOLO(self.ws_path + '/ros2_yolo/weights/yolov8n.pt')
 
     def image_callback(self, msg):
-        timestamp = msg.header.stamp
+        header = msg.header
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # yolo model
         results = self.yolo_model(cv_image)
 
+        # save image
         pred_image = results[0].plot()
         cv2.imwrite(self.ws_path + '/ros2_yolo/image/image.jpg', cv_image)
         cv2.imwrite(self.ws_path + '/ros2_yolo/image/pred.jpg', pred_image)
 
-        reliable_box_array = self.filter_prediction(results)
-        # Float32MultiArrayはheaderを持たないため，リストの先頭にタイムスタンプを追加
-        reliable_box_array.insert(0, float(timestamp.sec))
-        reliable_box_array.insert(1, float(timestamp.nanosec))
+        vision_msg = Detection2DArray()
+        vision_msg.header = header
 
-        # 信頼度の高いボックスの座標を配信
-        box_msg = Float32MultiArray()
-        box_msg.data = reliable_box_array
-        self.box_publisher.publish(box_msg)
+        # input single image -> len(results) = 1
+        result = results[0]
+        for box in result.boxes:
+            detection = Detection2D()
+            detection.header = header
+            objectHypothesis = ObjectHypothesisWithPose()
+            objectHypothesis.id = box[5]
+            objectHypothesis.score = box[4]
+            detection.results.append(objectHypothesis)
+            detection.bbox.center.x = (box[2] - box[0]) / 2
+            detection.bbox.center.y = (box[3] - box[1]) / 2
+            detection.bbox.size_x = box[2] - box[0]
+            detection.bbox.size_y = box[3] - box[1]
+            # detection.source_img = msg # msg became too large
+            vision_msg.detections.append(detection)
 
-        # 予測結果の画像を配信
         pred_msg = self.bridge.cv2_to_imgmsg(pred_image, encoding='bgr8')
-        # タイムスタンプを観測画像のものに合わせる
         pred_msg.header.stamp = timestamp
         self.img_publisher.publish(pred_msg)
 
-    def filter_prediction(self, results):
-        # 検出結果
-        # 0~3: ボックスの座標(xmin, ymin, xmax, ymax)
-        # 4: 信頼度
-        # 5: クラス値
-        box_datas = results[0].boxes.data
-
-        # 検出対象のクラスのクラス値（ヒトは0）
-        tgt_cls = 0
-        threshold = 1e-6
-        # 検出対象のクラスのデータのみを抽出
-        # クラス値の一致（閾値内）で判断している
-        tgt_boxes = [box_data for box_data in box_datas if abs(box_data[5] - tgt_cls) <= threshold]
-        # 信頼度順で出力されるため，先頭が最も信頼度が高い
-        reliable_box = tgt_boxes[0] if tgt_boxes else None
-
-        # リストに変換
-        reliable_box_array = reliable_box.tolist() if reliable_box is not None else []
-        print(reliable_box_array)
-
-        return reliable_box_array
+        self.vmsg_publisher.publish(vision_msg)
 
 
 def main(args=None):
