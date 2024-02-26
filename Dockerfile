@@ -17,6 +17,7 @@ ENV SHELL /bin/bash
 
 # for yolov8
 RUN apt install --no-install-recommends -y python3-pip git zip curl htop libgl1 libglib2.0-0 libpython3-dev gnupg g++ libusb-1.0-0
+RUN apt install -y ros-humble-vision-msgs
 RUN python3 -m pip install --upgrade pip wheel
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install ultralytics
