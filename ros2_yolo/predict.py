@@ -3,7 +3,7 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
-from vison_msgs.msg import Detection2DArray
+from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from cv_bridge import CvBridge
 import cv2
 
@@ -37,22 +37,22 @@ class YOLOPredictor(Node):
 
         # input single image -> len(results) = 1
         result = results[0]
-        for box in result.boxes:
+        print(result.boxes)
+        for i in range(len(result.boxes)):
             detection = Detection2D()
             detection.header = header
             objectHypothesis = ObjectHypothesisWithPose()
-            objectHypothesis.id = box[5]
-            objectHypothesis.score = box[4]
+            objectHypothesis.hypothesis.class_id = str(float(result.boxes.cls[i]))
+            objectHypothesis.hypothesis.score = float(result.boxes.conf[i])
             detection.results.append(objectHypothesis)
-            detection.bbox.center.x = (box[2] - box[0]) / 2
-            detection.bbox.center.y = (box[3] - box[1]) / 2
-            detection.bbox.size_x = box[2] - box[0]
-            detection.bbox.size_y = box[3] - box[1]
-            # detection.source_img = msg # msg became too large
+            detection.bbox.center.position.x = float((result.boxes.xyxy[i][2] - result.boxes.xyxy[i][0]) / 2)
+            detection.bbox.center.position.y = float((result.boxes.xyxy[i][3] - result.boxes.xyxy[i][1]) / 2)
+            detection.bbox.size_x = float(result.boxes.xywh[i][2])
+            detection.bbox.size_y = float(result.boxes.xywh[i][3])
             vision_msg.detections.append(detection)
 
         pred_msg = self.bridge.cv2_to_imgmsg(pred_image, encoding='bgr8')
-        pred_msg.header.stamp = timestamp
+        pred_msg.header = header
         self.img_publisher.publish(pred_msg)
 
         self.vmsg_publisher.publish(vision_msg)
