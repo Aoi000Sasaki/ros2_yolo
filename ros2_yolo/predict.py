@@ -3,7 +3,7 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
-from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
+from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose, VisionClass, LabelInfo
 from cv_bridge import CvBridge
 import cv2
 
@@ -17,6 +17,7 @@ class YOLOPredictor(Node):
         self.subscription = self.create_subscription(Image, '/color/image_raw', self.image_callback, 1)
         self.vmsg_publisher = self.create_publisher(Detection2DArray, '/ros2_yolo/detection', 10)
         self.img_publisher = self.create_publisher(Image, '/ros2_yolo/pred', 10)
+        self.label_publisher = self.create_publisher(LabelInfo, '/ros2_yolo/labels', 10)
         self.bridge = CvBridge()
         self.yolo_model = YOLO(self.ws_path + '/ros2_yolo/weights/yolov8n.pt')
 
@@ -34,15 +35,13 @@ class YOLOPredictor(Node):
 
         vision_msg = Detection2DArray()
         vision_msg.header = header
-
         # input single image -> len(results) = 1
         result = results[0]
-        print(result.boxes)
         for i in range(len(result.boxes)):
             detection = Detection2D()
             detection.header = header
             objectHypothesis = ObjectHypothesisWithPose()
-            objectHypothesis.hypothesis.class_id = str(float(result.boxes.cls[i]))
+            objectHypothesis.hypothesis.class_id = str(int(result.boxes.cls[i]))
             objectHypothesis.hypothesis.score = float(result.boxes.conf[i])
             detection.results.append(objectHypothesis)
             detection.bbox.center.position.x = float((result.boxes.xyxy[i][2] - result.boxes.xyxy[i][0]) / 2)
@@ -51,11 +50,19 @@ class YOLOPredictor(Node):
             detection.bbox.size_y = float(result.boxes.xywh[i][3])
             vision_msg.detections.append(detection)
 
+        label_info = LabelInfo()
+        label_info.header = header
+        for label_id in result.names:
+            vision_class = VisionClass()
+            vision_class.class_id = label_id
+            vision_class.class_name = result.names[label_id]
+            label_info.class_map.append(vision_class)
+
         pred_msg = self.bridge.cv2_to_imgmsg(pred_image, encoding='bgr8')
         pred_msg.header = header
         self.img_publisher.publish(pred_msg)
-
         self.vmsg_publisher.publish(vision_msg)
+        self.label_publisher.publish(label_info)
 
 
 def main(args=None):
